@@ -109,13 +109,28 @@ let busy = false;
 
 async function apiRequest(data) {
 
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(data)
-  });
+  let response;
+
+  if (data.action === "verify") {
+
+    const url = new URL(API_URL);
+    url.searchParams.set("token", data.token);
+
+    response = await fetch(url.toString(), {
+      method: "GET"
+    });
+
+  } else {
+
+    response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(data)
+    });
+
+  }
 
   if (!response.ok) {
     throw new Error("Connection failed.");

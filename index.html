@@ -158,7 +158,7 @@ function startScanner() {
 
       busy = true;
       currentToken = decodedText.trim();
-
+alert("QR SCANNED: " + currentToken);
       scanner.pause(true);
 
       document.getElementById("message").innerText =

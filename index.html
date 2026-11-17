@@ -158,7 +158,7 @@ function startScanner() {
       if (busy) return;
 
       busy = true;
-     currentToken = decodedText.trim().replace(/^["']|["']$/g, "");
+     currentToken = decodedText.replace(/["']/g, "").trim();
 alert("QR SCANNED: " + currentToken);
       scanner.pause(true);
 

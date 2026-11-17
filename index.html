@@ -115,7 +115,8 @@ async function apiRequest(data) {
 
     const url = new URL(API_URL);
     url.searchParams.set("token", data.token);
-
+console.log("TOKEN SENT TO SERVER:", data.token);
+console.log("REQUEST URL:", url.toString());
     response = await fetch(url.toString(), {
       method: "GET"
     });

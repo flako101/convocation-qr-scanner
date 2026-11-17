@@ -1,1 +1,313 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <title>Convocation QR Access 2026</title>
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f1f5f9;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 25px auto;
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      box-shadow: 0 4px 15px #0002;
+    }
+
+    h2 { color: #172554; }
+
+    #reader {
+      width: 100%;
+      margin: 20px auto;
+    }
+
+    button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #startBtn {
+      background: #1d4ed8;
+      color: white;
+    }
+
+    #admitBtn {
+      background: #15803d;
+      color: white;
+      display: none;
+    }
+
+    #message {
+      margin: 20px 0;
+      font-weight: bold;
+    }
+
+    #guestDetails {
+      display: none;
+      background: #f1f5f9;
+      padding: 15px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h2>CONVOCATION 2026</h2>
+  <h3>GUEST ACCESS SYSTEM</h3>
+
+  <p>Scan the guest's QR invitation.</p>
+
+  <div id="reader"></div>
+
+  <button id="startBtn" onclick="startScanner()">
+    START CAMERA
+  </button>
+
+  <div id="message">Waiting to scan...</div>
+
+  <div id="guestDetails">
+    <h2 id="guestName"></h2>
+    <p id="guestID"></p>
+    <p id="guestStatus"></p>
+
+    <button id="admitBtn" onclick="admitGuestNow()">
+      ADMIT GUEST
+    </button>
+  </div>
+
+</div>
+
+<script>
+
+const API_URL =
+"https://convocation-qr-access.emiletokan.workers.dev/";
+
+let scanner;
+let currentToken = "";
+let busy = false;
+
+async function apiRequest(data) {
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    throw new Error("Connection failed.");
+  }
+
+  return await response.json();
+}
+
+function startScanner() {
+
+  if (scanner) return;
+
+  scanner = new Html5Qrcode("reader");
+
+  document.getElementById("message").innerText =
+    "Starting camera...";
+
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+
+    async function(decodedText) {
+
+      if (busy) return;
+
+      busy = true;
+      currentToken = decodedText.trim();
+
+      scanner.pause(true);
+
+      document.getElementById("message").innerText =
+        "Checking invitation...";
+
+      document.getElementById("guestDetails").style.display =
+        "none";
+
+      try {
+
+        const result = await apiRequest({
+          action: "verify",
+          token: currentToken
+        });
+
+        showGuest(result);
+
+      } catch(error) {
+
+        showError(error);
+
+      }
+
+    }
+
+  ).catch(function(error) {
+
+    document.getElementById("message").innerText =
+      "Camera error: " + error;
+
+    scanner = null;
+
+  });
+
+}
+
+function showGuest(result) {
+
+  if (!result.success) {
+
+    document.getElementById("message").innerText =
+      result.message;
+
+    resetScannerAfterDelay();
+
+    return;
+  }
+
+  document.getElementById("guestDetails").style.display =
+    "block";
+
+  document.getElementById("guestName").innerText =
+    result.fullName;
+
+  document.getElementById("guestID").innerText =
+    "Guest ID: " + result.guestID;
+
+  document.getElementById("guestStatus").innerText =
+    "Check-in: " + result.checkInStatus;
+
+  if (result.invitationStatus !== "ACTIVE") {
+
+    document.getElementById("message").innerText =
+      "INVITATION NOT ACTIVE";
+
+  } else if (result.checkInStatus === "CHECKED IN") {
+
+    document.getElementById("message").innerText =
+      "ALREADY CHECKED IN";
+
+  } else {
+
+    document.getElementById("message").innerText =
+      "INVITATION VERIFIED";
+
+    document.getElementById("admitBtn").style.display =
+      "block";
+  }
+
+}
+
+async function admitGuestNow() {
+
+  const pin = prompt("Enter administrator PIN:");
+
+  if (pin === null) return;
+
+  if (!/^\d{6}$/.test(pin)) {
+    alert("Enter your six-digit PIN.");
+    return;
+  }
+
+  document.getElementById("admitBtn").disabled = true;
+
+  document.getElementById("message").innerText =
+    "Processing admission...";
+
+  try {
+
+    const result = await apiRequest({
+      action: "admit",
+      token: currentToken,
+      pin: pin
+    });
+
+    document.getElementById("message").innerText =
+      result.message;
+
+    if (result.success) {
+
+      document.getElementById("guestStatus").innerText =
+        "Check-in: CHECKED IN";
+
+    }
+
+    document.getElementById("admitBtn").style.display =
+      "none";
+
+    resetScannerAfterDelay();
+
+  } catch(error) {
+
+    showError(error);
+
+  } finally {
+
+    document.getElementById("admitBtn").disabled = false;
+
+  }
+
+}
+
+function showError(error) {
+
+  document.getElementById("message").innerText =
+    "Error: " + error.message;
+
+  resetScannerAfterDelay();
+
+}
+
+function resetScannerAfterDelay() {
+
+  setTimeout(function() {
+
+    document.getElementById("guestDetails").style.display =
+      "none";
+
+    document.getElementById("admitBtn").style.display =
+      "none";
+
+    document.getElementById("message").innerText =
+      "Ready for next guest.";
+
+    currentToken = "";
+    busy = false;
+
+    if (scanner) scanner.resume();
+
+  }, 3000);
+
+}
+
+</script>
+
+</body>
+</html>
